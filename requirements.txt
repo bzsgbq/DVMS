@@ -1,0 +1,10 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+
+matplotlib==3.4.2
+notebook==6.4.10
+numpy==1.19.5
+openpyxl==3.0.9
+pandas==1.2.4
+seaborn==0.11.2
+torch==1.7.1+cu110
+tqdm==4.60.0
