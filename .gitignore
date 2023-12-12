@@ -19,6 +19,7 @@ dataset/
 original_dataset_xyz/
 sampled_dataset/
 sampled_dataset_replica/
+sampled_dataset_thetaphi/
 fovxy_outliers/
 
 _David_MMSys_18/

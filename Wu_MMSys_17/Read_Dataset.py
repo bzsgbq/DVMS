@@ -20,6 +20,7 @@ from transformers import VideoMAEImageProcessor
 
 ROOT_FOLDER = './Wu_MMSys_17/dataset/'
 OUTPUT_FOLDER = './Wu_MMSys_17/sampled_dataset'
+OUTPUT_FOLDER_THETAPHI = './Wu_MMSys_17/sampled_dataset_thetaphi'
 OUTPUT_FOLDER_ORIGINAL_XYZ = './Wu_MMSys_17/original_dataset_xyz'
 OUTPUT_FOLDER_TRUE_SALIENCY = './Wu_MMSys_17/true_saliency'
 OUTPUT_FOLDER_PROCESSED_SALIENCY = './Wu_MMSys_17/processed_saliency'
@@ -280,14 +281,14 @@ def get_xyz_dataset(sampled_dataset):
             dataset[user][video] = recover_xyz_from_quaternions_trace(sampled_dataset[user][video])
     return dataset
 
-# Store the dataset in xyz coordinates form into the folder_to_store
-def store_dataset(xyz_dataset, folder_to_store):
-    for user in xyz_dataset.keys():
-        for video in xyz_dataset[user].keys():
+# Store the dataset into the folder_to_store
+def store_dataset(dataset, folder_to_store):
+    for user in dataset.keys():
+        for video in dataset[user].keys():
             video_folder = os.path.join(folder_to_store, video)
             os.makedirs(video_folder, exist_ok=True)  # Create the folder for the video if it doesn't exist
             path = os.path.join(video_folder, user)
-            df = pd.DataFrame(xyz_dataset[user][video])
+            df = pd.DataFrame(dataset[user][video])
             df.to_csv(path, header=False, index=False)
 
 
@@ -421,16 +422,35 @@ def create_and_store_true_saliency(sampled_dataset):
         np.save(true_sal_out_file, real_saliency_for_video)
 
 def load_sampled_dataset():
+    print("loading sampled dataset...")
     list_of_videos = [o for o in os.listdir(OUTPUT_FOLDER) if not o.endswith('.gitkeep')]
     dataset = {}
-    for video in list_of_videos:
+    for video in tqdm(list_of_videos):
         for user in [o for o in os.listdir(os.path.join(OUTPUT_FOLDER, video)) if not o.endswith('.gitkeep')]:
             if user not in dataset.keys():
                 dataset[user] = {}
             path = os.path.join(OUTPUT_FOLDER, video, user)
             data = pd.read_csv(path, header=None)
             dataset[user][video] = data.values
+    print("sampled dataset loaded!")
     return dataset
+
+
+def create_and_store_thetaphi_dataset():
+    dataset = load_sampled_dataset()
+    print("creating and storing thetaphi dataset...")
+    thetaphi_dataset = {}
+    for user in tqdm(dataset.keys()):
+        thetaphi_dataset[user] = {}
+        for video in dataset[user].keys():
+            # sampled_dataset.columns: ['timestamp', 'playback_time(s)', 'x', 'y', 'z', ... ]
+            # thetaphi_dataset.columns: ['timestamp', 'playback_time(s)', 'theta', 'phi' ]
+            thetaphi_dataset[user][video] = dataset[user][video][:, :4].copy()
+            for i in range(dataset[user][video].shape[0]):
+                thetaphi_dataset[user][video][i, 2], thetaphi_dataset[user][video][i, 3] = cartesian_to_eulerian(dataset[user][video][i, 2], dataset[user][video][i, 3], dataset[user][video][i, 4])
+    store_dataset(thetaphi_dataset, OUTPUT_FOLDER_THETAPHI)
+    print("thetaphi dataset created and stored!")
+
 
 def get_most_salient_points_per_video():
     from skimage.feature import peak_local_max
@@ -854,6 +874,7 @@ if __name__ == "__main__":
     parser.add_argument('--split_traces', action="store_true", dest='_split_traces_and_store', help='Flag that tells if we want to create the files to split the traces into train and test.')
     parser.add_argument('--creat_orig_dat', action="store_true", dest='_create_original_dataset', help='Flag that tells if we want to create and store the original dataset.')
     parser.add_argument('--creat_samp_dat', action="store_true", dest='_create_sampled_dataset', help='Flag that tells if we want to create and store the sampled dataset.')
+    parser.add_argument('--creat_thph_dat', action="store_true", dest='_create_thetaphi_dataset', help='Flag that tells if we want to create and store the thetaphi dataset.')
     parser.add_argument('--creat_true_sal', action="store_true", dest='_create_true_saliency', help='Flag that tells if we want to create and store the ground truth saliency.')
     parser.add_argument('--compare_traces', action="store_true", dest='_compare_traces', help='Flag that tells if we want to compare the original traces with the sampled traces.')
     parser.add_argument('--plot_3d_traces', action="store_true", dest='_plot_3d_traces', help='Flag that tells if we want to plot the traces in the unit sphere.')
@@ -872,6 +893,9 @@ if __name__ == "__main__":
 
     if args._create_sampled_dataset:
         create_and_store_sampled_dataset()
+        
+    if args._create_thetaphi_dataset:
+        create_and_store_thetaphi_dataset()
 
     if args._create_fovxy_dataset:  # 在生成好的sampled_dataset的基础上添加两列, 分别是fov_x和fov_y
         create_and_store_fovxy_dataset()
