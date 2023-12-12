@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import cv2
 import argparse
+from tqdm import tqdm
 
 ROOT_FOLDER = './David_MMSys_18/dataset/'
 OUTPUT_FOLDER = './David_MMSys_18/sampled_dataset'
-
+OUTPUT_FOLDER_THETAPHI = './David_MMSys_18/sampled_dataset_thetaphi'
 OUTPUT_FOLDER_ORIGINAL_XYZ = './David_MMSys_18/original_dataset_xyz'
-
 OUTPUT_FOLDER_TRUE_SALIENCY = './David_MMSys_18/saliency_true'
 OUTPUT_FOLDER_PAVER_SALIENCY = './David_MMSys_18/saliency_paver_big'
 OUTPUT_FOLDER_PROCESSED_SALIENCY = './David_MMSys_18/saliency_processed'
@@ -272,6 +272,24 @@ def create_and_store_sampled_dataset(plot_comparison=False, plot_3d_traces=False
     if plot_3d_traces:
         plot_all_traces_in_3d(xyz_dataset)
     store_dataset(xyz_dataset, OUTPUT_FOLDER)
+
+
+def create_and_store_thetaphi_dataset():
+    dataset = load_sampled_dataset()
+    print("creating and storing thetaphi dataset...")
+    thetaphi_dataset = {}
+    for user in tqdm(dataset.keys()):
+        thetaphi_dataset[user] = {}
+        for video in dataset[user].keys():
+            # sampled_dataset.columns: ['playback_time(s)', 'x', 'y', 'z']
+            # thetaphi_dataset.columns: ['playback_time(s)', 'theta', 'phi' ]
+            thetaphi_dataset[user][video] = dataset[user][video][:, :3].copy()
+            thetaphi_dataset[user][video][:, 1], thetaphi_dataset[user][video][:, 2] = cartesian_to_eulerian(dataset[user][video][:, 1], dataset[user][video][:, 2], dataset[user][video][:, 3])
+            if thetaphi_dataset[user][video].shape[0] < NUM_SAMPLES_PER_USER:
+                print(f'Warning: thetaphi_dataset[{user}][{video}].shape[0] < NUM_SAMPLES_PER_USER')
+    store_dataset(thetaphi_dataset, OUTPUT_FOLDER_THETAPHI)
+    print("thetaphi dataset created and stored!")
+
 
 def create_and_store_true_saliency(sampled_dataset):
     if not os.path.exists(OUTPUT_FOLDER_TRUE_SALIENCY):
@@ -631,6 +649,7 @@ if __name__ == "__main__":
     parser.add_argument('--split_traces', action="store_true", dest='_split_traces_and_store', help='Flag that tells if we want to create the files to split the traces into train, val and test.')
     parser.add_argument('--creat_orig_dat', action="store_true", dest='_create_original_dataset', help='Flag that tells if we want to create and store the original dataset.')
     parser.add_argument('--creat_samp_dat', action="store_true", dest='_create_sampled_dataset', help='Flag that tells if we want to create and store the sampled dataset.')
+    parser.add_argument('--creat_thph_dat', action="store_true", dest='_create_thetaphi_dataset', help='Flag that tells if we want to create and store the thetaphi dataset.')
     parser.add_argument('--creat_true_sal', action="store_true", dest='_create_true_saliency', help='Flag that tells if we want to create and store the ground truth saliency.')
     parser.add_argument('--compare_traces', action="store_true", dest='_compare_traces', help='Flag that tells if we want to compare the original traces with the sampled traces.')
     parser.add_argument('--plot_3d_traces', action="store_true", dest='_plot_3d_traces', help='Flag that tells if we want to plot the traces in the unit sphere.')
@@ -646,6 +665,9 @@ if __name__ == "__main__":
 
     if args._create_sampled_dataset:
         create_and_store_sampled_dataset()
+    
+    if args._create_thetaphi_dataset:
+        create_and_store_thetaphi_dataset()
 
     if args._compare_traces:
         original_dataset = get_original_dataset()
